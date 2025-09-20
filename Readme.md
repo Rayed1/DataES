@@ -137,8 +137,6 @@ IGNORE_WHEN_COPYING_START
 IGNORE_WHEN_COPYING_END
 streamlit run 🏠_Data_Quality_Analysis.py --server.maxUploadSize 1024
 
-Your web browser will automatically open with the running application! 🎉
-
 This project successfully implements the core requirements of the challenge:
 
 ✅ Flagging of Data Quality Issues: Implemented with a precise, evidence-based diagnostic engine.
