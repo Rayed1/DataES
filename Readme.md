@@ -139,16 +139,6 @@ streamlit run 🏠_Data_Quality_Analysis.py --server.maxUploadSize 1024
 
 Your web browser will automatically open with the running application! 🎉
 
-🖼️ Project Showcase
-
-Screenshots of your application would go here. They are highly recommended for a great README!
-
-AI Data Quality Assistant	Advanced EDA Dashboard
-[Image of the main page with suggestions]	[Image of the feature analysis page with tabs]
-Anomaly Detection with AI Root Cause	End-to-End Data Lineage
-[Image of the anomaly scatter plot]	[Image of the multi-file lineage graph]
-🌟 Key Achievements & Hackathon Objectives Addressed
-
 This project successfully implements the core requirements of the challenge:
 
 ✅ Flagging of Data Quality Issues: Implemented with a precise, evidence-based diagnostic engine.
