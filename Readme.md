@@ -3,7 +3,7 @@
 ![alt text](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)
 <!-- Replace with your deployment link -->
 
-DataQual AI is a comprehensive, AI-powered Streamlit application designed to automate and enhance the entire data quality and exploratory data analysis (EDA) workflow. It transforms the tedious, manual process of data validation into an interactive, intelligent, and insightful experience.
+DataES AI is a comprehensive, AI-powered Streamlit application designed to automate and enhance the entire data quality and exploratory data analysis (EDA) workflow. It transforms the tedious, manual process of data validation into an interactive, intelligent, and insightful experience.
 
 The platform provides an end-to-end solution that helps data professionals ensure data integrity, discover hidden patterns, identify anomalies, and understand data lineage with unprecedented ease and transparency.
 
@@ -79,7 +79,7 @@ AI/LLM Integration: Communicates with any local Large Language Model served via 
 
 🛠️ Getting Started
 
-Follow these steps to run the DataQual AI platform on your local machine.
+Follow these steps to run the DataES AI platform on your local machine.
 
 1. Prerequisites
 
