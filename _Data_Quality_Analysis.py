@@ -6,14 +6,14 @@ from openai import OpenAI
 # --- Configuration for LM Studio ---
 client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key="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")
 
-# --- Initial AI Suggestion Engine (Unchanged) ---
+# --- Initial AI Suggestion Engine ---
 def get_precise_suggestions(df):
     """
     Analyzes a DataFrame and provides precise, evidence-based data quality suggestions.
     It only reports issues when there is statistical evidence that they exist.
     """
     suggestions = {}
-    # Use a larger sample for more accurate statistical checks, but cap it for performance
+
     sample_df = df.head(5000)
     total_rows = len(sample_df)
 
@@ -22,11 +22,11 @@ def get_precise_suggestions(df):
         col_series = sample_df[column]
         dtype = str(col_series.dtype)
 
-        # --- Check 1: Missing Values (More nuanced) ---
+        # --- Check 1: Missing Values ---
         if col_series.isnull().any():
             missing_percentage = col_series.isnull().mean() * 100
             if missing_percentage > 40:
-                # Flag high-levels of missing data as a major concern
+                # Flag high levels of missing data as a major concern
                 col_suggestions.append(f"**Major Concern - High Missing Values:** **{missing_percentage:.1f}%** of the data is missing. This column may need to be dropped or require advanced imputation.")
             else:
                 col_suggestions.append(f"**Missing Values Found:** {missing_percentage:.1f}% of the data is missing. Consider a suitable imputation strategy (e.g., mean, median, mode).")
@@ -37,8 +37,7 @@ def get_precise_suggestions(df):
             if col_series.nunique() == 1:
                 col_suggestions.append(f"**Constant Value (Zero Variance):** This column contains only one value (`{col_series.iloc[0]}`). It offers no predictive value and can likely be dropped.")
             
-            # Check 3: Outlier Detection using the IQR method (more robust than generic suggestion)
-            # Only check for outliers if it's not a binary or low-cardinality integer column
+            # Check 3: Outlier Detection using the IQR method 
             if col_series.nunique() > 10:
                 Q1 = col_series.quantile(0.25)
                 Q3 = col_series.quantile(0.75)
@@ -52,23 +51,21 @@ def get_precise_suggestions(df):
 
         # --- Checks for Categorical/Object Columns ---
         elif pd.api.types.is_object_dtype(col_series):
-            # Check 4: High Cardinality (more nuanced)
+            # Check 4: High Cardinality 
             num_unique = col_series.nunique()
             cardinality_ratio = num_unique / total_rows
             if cardinality_ratio > 0.95 and num_unique > 1000:
-                # This is very likely a unique identifier
+           
                 col_suggestions.append(f"**Unique Identifier:** This column has a unique value for nearly every row ({num_unique} unique values). It should be treated as an ID, not a categorical feature.")
             elif num_unique > 50:
                 col_suggestions.append(f"**High Cardinality:** Contains **{num_unique}** unique text categories. This may require feature engineering (e.g., grouping, target encoding) before use in some models.")
 
-            # Check 5: Inconsistent Formatting (Whitespace and Case)
-            # Leading/Trailing Whitespace
+            # Check 5: Inconsistent Formatting 
             if col_series.astype(str).str.strip().nunique() < num_unique:
                 col_suggestions.append("**Inconsistent Whitespace:** Found values with leading or trailing whitespace (e.g., ' value' vs. 'value'). These should be standardized by trimming whitespace.")
             
             # Mixed Case
             if col_series.nunique() > col_series.str.lower().nunique():
-                 # Find an example
                 lower_counts = col_series.str.lower().value_counts()
                 example_lower = lower_counts[lower_counts > 1].index[0]
                 example_cases = col_series[col_series.str.lower() == example_lower].unique()
@@ -82,7 +79,6 @@ def get_precise_suggestions(df):
 
 with st.sidebar:
     st.header("🤖 AI Model Configuration")
-    # A selection of popular models available on OpenRouter
     selected_model = st.selectbox(
         "Choose an AI Model:",
         [
@@ -94,12 +90,11 @@ with st.sidebar:
         ],
         help="Select a model from OpenRouter to power the AI analysis."
     )
-    # Store the selected model in the session state so other pages can access it
     st.session_state['selected_model'] = selected_model
     st.info(f"Using **{selected_model}** for all AI tasks.")
 
 
-# --- Column Profile Generator (Unchanged) ---
+# --- Column Profile Generator ---
 def generate_column_profile(df, column_name):
     column_series = df[column_name]
     dtype = str(column_series.dtype)
@@ -113,7 +108,7 @@ def generate_column_profile(df, column_name):
         profile.append(str(column_series.value_counts().head(5).to_dict()))
     return "\n".join(profile)
 
-# --- RAG-Enabled LLM Function (Unchanged) ---
+# --- RAG-Enabled LLM Function ---
 def get_llm_analysis(df, column_name, suggestions, user_query, data_dictionary={}):
     system_prompt = (
         "You are a world-class data quality analyst. You will be given a statistical profile of a data column, "
@@ -141,8 +136,6 @@ def get_llm_analysis(df, column_name, suggestions, user_query, data_dictionary={
 
     try:
         completion = client.chat.completions.create(
-            # --- CRITICAL CHANGE ---
-            # It now gets the model name from the session state
             model=st.session_state.get('selected_model', "mistralai/mistral-7b-instruct"), 
             messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
             temperature=0.7,
@@ -173,14 +166,11 @@ if dictionary_file is not None:
     except Exception as e:
         st.error(f"Error processing dictionary file: {e}")
 
-# This block now handles the ONE-TIME processing when a new file is uploaded.
 if main_file is not None and 'df' not in st.session_state:
     with st.spinner("Reading and analyzing your dataset... This may take a moment."):
         df = pd.read_csv(main_file, nrows=20000)
-        # Store the main dataframe in the session state
         st.session_state['df'] = df
         
-        # --- CRITICAL FIX: Analyze ONCE and store suggestions in session state ---
         st.session_state['suggestions'] = get_precise_suggestions(df)
         st.success("Dataset loaded and initial analysis complete!")
 
@@ -193,13 +183,9 @@ if 'suggestions' in st.session_state:
         else:
             st.info(f"Found potential data quality issues in {len(suggestions)} columns. Click on a column to see the details.")
             
-            # Loop through each column that has suggestions
             for col, sug_list in suggestions.items():
-                # Create a nested expander for each column's findings
                 with st.expander(f"Findings for Column: **{col}**"):
-                    # Loop through the list of suggestions for that column
                     for suggestion in sug_list:
-                        # Use st.markdown to render the suggestions as a bulleted list
                         st.markdown(f"- {suggestion}")
 
 if 'df' in st.session_state:
@@ -220,11 +206,10 @@ if 'df' in st.session_state:
             column_series = df[column_to_analyze]
             dtype = str(column_series.dtype)
 
-            # --- NEW: Dynamic Statistics Display ---
+            # --- Dynamic Statistics Display ---
             st.markdown("##### Key Column Statistics")
             
             if 'int' in dtype or 'float' in dtype:
-                # Stats for numerical columns
                 stats = column_series.describe()
                 stat_cols = st.columns(4)
                 stat_cols[0].metric("Total Rows", f"{int(stats['count']):,}")
@@ -232,7 +217,6 @@ if 'df' in st.session_state:
                 stat_cols[2].metric("Min", f"{int(stats['min']):,}")
                 stat_cols[3].metric("Max", f"{int(stats['max']):,}")
             else:
-                # Stats for categorical columns
                 stats = column_series.describe()
                 stat_cols = st.columns(3)
                 stat_cols[0].metric("Total Rows", f"{int(stats['count']):,}")
@@ -243,7 +227,6 @@ if 'df' in st.session_state:
             missing_percent = column_series.isnull().mean() * 100
             st.metric("Missing Values", f"{missing_count:,} ({missing_percent:.2f}%)")
             st.divider()
-            # --- END of New Section ---
 
             st.markdown("##### Visualizations")
             if 'int' in dtype or 'float' in dtype:
