@@ -33,14 +33,11 @@ def create_features(df):
     """
     df_featured = df.copy()
     
-    # Define the columns required for our specific feature engineering
     REQUIRED_COLUMNS = [
         'AMT_CREDIT', 'AMT_INCOME_TOTAL', 'AMT_ANNUITY', 
         'DAYS_EMPLOYED', 'DAYS_BIRTH'
     ]
     
-    # --- INTELLIGENT CHECK ---
-    # Check if all required columns exist in the dataframe
     if all(col in df_featured.columns for col in REQUIRED_COLUMNS):
         # If they exist, perform the domain-specific feature engineering
         df_featured['CREDIT_INCOME_PERCENT'] = df_featured['AMT_CREDIT'] / df_featured['AMT_INCOME_TOTAL']
@@ -56,8 +53,7 @@ def create_features(df):
         # Return the dataframe with the new features
         return df_featured
     else:
-        # If required columns are missing, return the original dataframe
-        return df # Return the original df without changes
+        return df 
 
 @st.cache_data
 def calculate_correlation(_df):
@@ -77,8 +73,6 @@ def get_llm_interpretation(analysis_type, data_summary, question):
     )
     try:
         completion = client.chat.completions.create(
-            # --- CRITICAL CHANGE ---
-            # Also gets the model name from the session state
             model=st.session_state.get('selected_model', "mistralai/mistral-7b-instruct"), 
             messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
             temperature=0.7,
@@ -92,7 +86,7 @@ df_original = st.session_state['df']
 df_featured = create_features(df_original)
 st.session_state['df_featured'] = df_featured
 
-# --- Dashboard with New Tabs ---
+# --- Dashboard ---
 tab_list = [
     "🎯 Target Variable", 
     "🧮 Correlations", 
@@ -107,13 +101,11 @@ with tab1:
     st.header("Analysis of the Target Variable")
     st.write("Select a column to analyze its distribution. This is typically a binary outcome or a categorical feature with a small number of unique values.")
 
-    # Get the list of all columns
     all_cols = df_featured.columns.tolist()
     
-    # Try to find 'TARGET' and set it as the default, otherwise default to the last column
     default_index = all_cols.index('TARGET') if 'TARGET' in all_cols else len(all_cols) - 1
 
-    # --- DYNAMIC WIDGET: Allow user to select the target column ---
+    # --- DYNAMIC WIDGET ---
     target_col = st.selectbox(
         "Select the Target Variable Column:",
         options=all_cols,
@@ -124,8 +116,7 @@ with tab1:
         target_counts = df_featured[target_col].value_counts()
         num_unique_values = len(target_counts)
 
-        # --- INTELLIGENT VISUALIZATION ---
-        # If the column has few unique values, a pie chart is great.
+        # --- VISUALIZATION ---
         if num_unique_values < 15:
             st.subheader(f"Pie Chart for '{target_col}'")
             fig = px.pie(
@@ -135,15 +126,12 @@ with tab1:
             )
             st.plotly_chart(fig, use_container_width=True)
             
-            # Provide a dynamic summary
             st.info(f"The column '{target_col}' has **{num_unique_values}** unique values. The most frequent value is '**{target_counts.index[0]}**', appearing in **{target_counts.iloc[0]/len(df_featured):.2%}** of the rows.")
 
-        # If the column has many unique values, a pie chart is unreadable. Use a bar chart instead.
         else:
             st.subheader(f"Bar Chart for '{target_col}' (Top 20 Values)")
             st.warning(f"'{target_col}' has too many unique values ({num_unique_values}) for a pie chart. Displaying the top 20 most frequent values instead.")
             
-            # Get top 20 values for the bar chart
             top_20_counts = target_counts.head(20)
             
             fig = px.bar(
@@ -234,28 +222,20 @@ with tab5:
             if y_axis_feature:
                 features_to_analyze.append(y_axis_feature)
             
-            # Prepare data, train model, and get predictions
             X = df_featured[features_to_analyze].dropna()
             model = IsolationForest(contamination=contamination, random_state=42)
             preds = model.fit_predict(X)
             
-            # --- CRITICAL FIX: Store results in session_state ---
-            # Store data needed for the plot
             st.session_state['anomaly_plot_data'] = X.copy()
             st.session_state['anomaly_plot_data']['Anomaly'] = pd.Series(preds, index=X.index).map({1: 'Normal', -1: 'Anomaly'})
             
-            # Store the full anomaly dataframe for display and AI analysis
             st.session_state['anomalies_df'] = df_featured.loc[st.session_state['anomaly_plot_data'][st.session_state['anomaly_plot_data']['Anomaly'] == 'Anomaly'].index]
             
-            # Store plot details to reconstruct it after a rerun
             st.session_state['anomaly_plot_title'] = f"Anomaly Detection in {x_axis_feature}" + (f" vs. {y_axis_feature}" if y_axis_feature else "")
             st.session_state['anomaly_plot_x'] = x_axis_feature
             st.session_state['anomaly_plot_y'] = y_axis_feature
-    
-    # --- UI Elements are now moved outside the button block ---
-    # They will render if the results exist in the session state, regardless of button state.
+
     if 'anomalies_df' in st.session_state:
-        # Display the plot using stored details
         st.plotly_chart(px.scatter(
             st.session_state['anomaly_plot_data'], 
             x=st.session_state['anomaly_plot_x'], 
@@ -265,21 +245,17 @@ with tab5:
             title=st.session_state['anomaly_plot_title']
         ), use_container_width=True)
         
-        # Display anomalous data points
         st.write("Detected Anomalies:")
         anomalies_df_from_state = st.session_state['anomalies_df']
         st.dataframe(anomalies_df_from_state)
         
-        # AI Interpretation section now works correctly
         st.subheader("AI Root Cause Analysis")
         if not anomalies_df_from_state.empty:
-            # Use a unique key for the selectbox to prevent state issues
             selected_anomaly_id = st.selectbox("Select an anomaly to analyze with AI:", options=anomalies_df_from_state.index, key="anomaly_select")
             if st.button("Ask AI to Analyze Selected Anomaly"):
                 with st.spinner("AI is analyzing the selected anomaly..."):
                     anomaly_data = anomalies_df_from_state.loc[selected_anomaly_id].to_dict()
                     
-                    # Clean up data types for a better LLM prompt
                     for key, value in anomaly_data.items():
                         if isinstance(value, np.generic):
                             anomaly_data[key] = value.item()
@@ -295,11 +271,9 @@ with tab6:
     st.header("🔗 End-to-End Data Lineage")
     st.write("Visualize the complete data flow, from source files to engineered features.")
 
-    # --- Part 1: Inter-File Data Flow (The "Awesome" Graph) ---
     st.subheader("1. Source-to-Table Data Flow")
     st.write("Upload related CSV files (e.g., `bureau.csv`, `previous_application.csv`) to visualize how they join to create the final analytical dataset. File names must be exact to be recognized.")
 
-    # Pre-defined known relationships for the Home Credit dataset
     known_relationships = {
         'bureau.csv': {'on': 'SK_ID_CURR', 'type': 'Left Join'},
         'previous_application.csv': {'on': 'SK_ID_CURR', 'type': 'Left Join'},
@@ -315,23 +289,19 @@ with tab6:
         accept_multiple_files=True
     )
 
-    # Generate and display the data flow graph
     dot_flow = graphviz.Digraph('DataFlow', graph_attr={'rankdir': 'LR', 'splines': 'ortho'})
     dot_flow.attr('node', shape='box', style='rounded,filled')
 
-    # Base node
     dot_flow.node('main_df', 'Main Application Data\n(application_train.csv)', fillcolor='orange')
 
     if related_files:
         uploaded_filenames = [f.name for f in related_files]
         
-        # Add nodes for each uploaded file and draw edges based on known relationships
         for filename in uploaded_filenames:
             if filename in known_relationships:
                 rel = known_relationships[filename]
                 dot_flow.node(filename, f"Source: {filename}", fillcolor='lightblue')
                 
-                # Logic to draw connections
                 if rel['type'] == 'Left Join':
                     dot_flow.edge(filename, 'main_df', label=f"  {rel['type']} on\n  {rel['on']}")
                 elif rel['type'] == 'Joins to bureau' and 'bureau.csv' in uploaded_filenames:
@@ -344,7 +314,6 @@ with tab6:
 
     st.divider()
 
-    # --- Part 2: Intra-File Feature Creation (The Original Graph) ---
     st.subheader("2. Feature Creation Recipe")
     st.write("After the source tables are joined, we create new features. Select a feature to see how it was derived from other columns in the final table.")
 
